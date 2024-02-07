@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  api:
+    build: ./
+    ports:
+      - "5050:5050"
+    networks: 
+      - api-network
+networks:
+  api-network:
+    driver: bridge

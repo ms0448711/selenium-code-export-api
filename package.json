@@ -1,0 +1,24 @@
+{
+  "name": "selenium-code-export-api",
+  "version": "1.0.0",
+  "description": "A project that use @seleniumhq/side-code-export to inplment a RESTful API.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/generator": "^7.23.6",
+    "@babel/parser": "^7.23.9",
+    "@babel/traverse": "^7.23.9",
+    "@babel/types": "^7.23.9",
+    "@seleniumhq/code-export-javascript-mocha": "^4.0.0-alpha.7",
+    "@seleniumhq/code-export-python-pytest": "^4.0.0-alpha.6",
+    "@seleniumhq/side-code-export": "^4.0.0-alpha.3",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.3",
+    "joi": "^17.12.1"
+  }
+}
