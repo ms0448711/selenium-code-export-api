@@ -171,8 +171,8 @@ router.post('/screenshot', async (req,res, next)=>{
         await _driver.manage().setTimeouts({ implicit: 10000 });
         await executeTestActions(By=_By,Key=_Key,until=_until,driver=_driver);
         await driver.manage().window().setRect({
-            width: 600,
-            height: 800
+            width: 800,
+            height: 600
           });
         await new Promise(resolve => setTimeout(resolve, 10000));
         var base64Data="";
