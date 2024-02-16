@@ -4,7 +4,14 @@ var router = express.Router();
 const fileUpload = require('express-fileupload');
 const Joi = require('joi');
 const { codeExport } = require('@seleniumhq/side-code-export')
-const { Builder, By, Key, until } = require('selenium-webdriver')
+var { Builder, By:_By, Key:_Key, until:_until } = require('selenium-webdriver')
+const firefox = require('selenium-webdriver/firefox');
+const javascript_format = require('@seleniumhq/code-export-javascript-mocha')
+const java_format = require('@seleniumhq/code-export-java-junit')
+const parser = require('@babel/parser');
+const traverse = require('@babel/traverse').default;
+const generate = require('@babel/generator').default;
+const t = require('@babel/types');
 
 /**
  * middleware
@@ -14,13 +21,10 @@ router.use(fileUpload({
     createParentPath: true
 }));
 
-/**
- * routes
- */
-router.get('/',(req,res)=>{
-    res.send("Hello World!");
-});
 
+/**
+ * util functions
+ */
 async function emitSuite(format, project, suiteName) {
     return format.emit.suite({
         baseUrl: project.url,
@@ -33,19 +37,7 @@ async function emitSuite(format, project, suiteName) {
     });
 }
 
-const format = require('@seleniumhq/code-export-javascript-mocha')
-// console.log(codeExport);
-// console.log(format.opts);
-
-const parser = require('@babel/parser');
-const traverse = require('@babel/traverse').default;
-const generate = require('@babel/generator').default;
-const t = require('@babel/types');
-router.post('/post', async (req,res)=>{
-    const project = JSON.parse(req.files.test.data.toString());
-    let item = project.suites[0];
-    // console.log(project);
-    const {body, filename} = await emitSuite(format.default,project, item.name);
+function generate_new_code(body){
     const ast = parser.parse(body, {
         sourceType: "module",
         plugins: ['asyncGenerators', 'classProperties']
@@ -81,15 +73,107 @@ router.post('/post', async (req,res)=>{
     ast.program.body = newProgramBody;
 
     // Generate the new code from the modified AST
-    const { code: newCode } = generate(ast);
-    const {executeTestActions} = await import(`data:text/javascript;base64,${btoa("const { Builder, By, Key, until } = import('selenium-webdriver');"+newCode)}`);
-    console.log(executeTestActions);
-    _driver = await new Builder().forBrowser('chrome').build();
-    await executeTestActions(driver=_driver);
-    _driver.close();
-    // console.log(filename);
-    res.send(req.files.test.name);
+    return generate(ast);
+}
 
+/**
+ * routes
+ */
+const available_langs=["javascript-mocha", "java-junit"];
+
+router.get('/export', async (req,res)=>{
+    res.send({
+        "lang": available_langs
+    });
+});
+
+router.post('/export', async (req,res)=>{
+    const fschema=Joi.object({
+        script: Joi.object({
+            name: Joi.string(),
+            data: Joi.any()
+        })
+    }).options({allowUnknown: true});
+    const {error:ferror} = fschema.validate(req.files);
+    if(ferror) {
+        res.send(ferror.details[0].message);
+        return;
+    }
+
+    const schema = Joi.object({
+        lang: Joi.string().valid(...available_langs)
+    });
+    const {error} = schema.validate(req.body);
+    if(error){
+        res.send(error.details[0].message);
+        return
+    }
+    try{
+        let format = null;
+        switch(req.body.lang){
+            case "javascript-mocha":
+                format = javascript_format
+                break;
+            case "java-junit":
+                format = java_format
+                break;
+        }
+        const project = JSON.parse(req.files.script.data.toString());
+        let item = project.suites[0];
+        const {body} = await emitSuite(format.default,project, item.name);
+        
+        res.send({
+            lang:req.body.lang,
+            code:body
+        })
+    }
+    catch(e){
+        console.trace(e);
+        res.status(500);
+        res.send(e)
+    }
+    
+});
+
+router.post('/screenshot', async (req,res)=>{
+    const fschema=Joi.object({
+        script: Joi.object({
+            name: Joi.string(),
+            data: Joi.any()
+        })
+    }).options({allowUnknown: true});
+    const {error:ferror} = fschema.validate(req.files);
+    if(ferror) {
+        res.send(ferror.details[0].message);
+        return;
+    }
+    try{
+        const project = JSON.parse(req.files.script.data.toString());
+        let item = project.suites[0];
+        const {body} = await emitSuite(javascript_format.default,project, item.name);
+        const { code: newCode } = generate_new_code(body);
+        
+        const {executeTestActions} = await import(`data:text/javascript;base64,${btoa(newCode)}`);
+        let _driver = await new Builder().forBrowser('firefox').setFirefoxOptions(new firefox.Options().addArguments('--headless')).build();
+        await _driver.manage().setTimeouts({ implicit: 10000 });
+        await executeTestActions(By=_By,Key=_Key,until=_until,driver=_driver);
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        var base64Data="";
+        await _driver.takeScreenshot().then(
+            function(data){
+                base64Data=data;
+            });
+        await _driver.close();
+        res.send({
+            file_name:req.files.script.name,
+            suite_name:item.name,
+            image:base64Data
+        });
+    }catch(e){
+        console.trace(e);
+        res.status(500);
+        res.send(e)
+    }
 });
 
 module.exports = router;
