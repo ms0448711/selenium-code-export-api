@@ -12,7 +12,7 @@ const router = require(path.resolve(__dirname,'controllers/api.js'));
 app.use('/api',router);
 const jsonErrorHandler = (err, req, res, next) => {
     console.log(err);
-    res.status(500).setHeader('Content-Type', 'application/json').send({ error: err });
+    res.status(500).setHeader('Content-Type', 'application/json').send({error:err.message});
   }
 app.use(jsonErrorHandler);
 
