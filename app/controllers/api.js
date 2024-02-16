@@ -16,6 +16,7 @@ const t = require('@babel/types');
 /**
  * middleware
  */
+
 router.use(express.json());
 router.use(fileUpload({
     createParentPath: true
@@ -25,7 +26,20 @@ router.use(fileUpload({
 /**
  * util functions
  */
+function projectPreprocess(project){
+    for(let i = 0; i<project.tests.length; i++){
+        let test=project.tests[i];
+        for(let j = 0;j<test.commands.length;j++){
+            let cmd=test.commands[j];
+            if(cmd.value==="")
+                cmd.value=' ';
+        }
+    }
+}
+
 async function emitSuite(format, project, suiteName) {
+    projectPreprocess(project,suiteName);
+
     return format.emit.suite({
         baseUrl: project.url,
         beforeEachOptions: {},
@@ -37,7 +51,7 @@ async function emitSuite(format, project, suiteName) {
     });
 }
 
-function generate_new_code(body){
+function generateNewCode(body){
     const ast = parser.parse(body, {
         sourceType: "module",
         plugins: ['asyncGenerators', 'classProperties']
@@ -87,7 +101,7 @@ router.get('/export', async (req,res)=>{
     });
 });
 
-router.post('/export', async (req,res)=>{
+router.post('/export', async (req,res, next)=>{
     const fschema=Joi.object({
         script: Joi.object({
             name: Joi.string(),
@@ -128,14 +142,12 @@ router.post('/export', async (req,res)=>{
         })
     }
     catch(e){
-        console.trace(e);
-        res.status(500);
-        res.send(e)
+        next(e);
     }
     
 });
 
-router.post('/screenshot', async (req,res)=>{
+router.post('/screenshot', async (req,res, next)=>{
     const fschema=Joi.object({
         script: Joi.object({
             name: Joi.string(),
@@ -151,8 +163,7 @@ router.post('/screenshot', async (req,res)=>{
         const project = JSON.parse(req.files.script.data.toString());
         let item = project.suites[0];
         const {body} = await emitSuite(javascript_format.default,project, item.name);
-        const { code: newCode } = generate_new_code(body);
-        
+        const { code: newCode } = generateNewCode(body);
         const {executeTestActions} = await import(`data:text/javascript;base64,${btoa(newCode)}`);
         let _driver = await new Builder().forBrowser('firefox').setFirefoxOptions(new firefox.Options().addArguments('--headless')).build();
         await _driver.manage().setTimeouts({ implicit: 10000 });
@@ -170,9 +181,7 @@ router.post('/screenshot', async (req,res)=>{
             image:base64Data
         });
     }catch(e){
-        console.trace(e);
-        res.status(500);
-        res.send(e)
+        next(e);
     }
 });
 
