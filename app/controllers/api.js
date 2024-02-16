@@ -6,6 +6,7 @@ const Joi = require('joi');
 const { codeExport } = require('@seleniumhq/side-code-export')
 var { Builder, By:_By, Key:_Key, until:_until } = require('selenium-webdriver')
 const firefox = require('selenium-webdriver/firefox');
+const chrome = require('selenium-webdriver/chrome');
 const javascript_format = require('@seleniumhq/code-export-javascript-mocha')
 const java_format = require('@seleniumhq/code-export-java-junit')
 const parser = require('@babel/parser');
@@ -165,9 +166,14 @@ router.post('/screenshot', async (req,res, next)=>{
         const {body} = await emitSuite(javascript_format.default,project, item.name);
         const { code: newCode } = generateNewCode(body);
         const {executeTestActions} = await import(`data:text/javascript;base64,${btoa(newCode)}`);
-        let _driver = await new Builder().forBrowser('firefox').setFirefoxOptions(new firefox.Options().addArguments('--headless')).build();
+        // from  https://stackoverflow.com/questions/53073411/selenium-webdriverexceptionchrome-failed-to-start-crashed-as-google-chrome-is
+        let _driver = await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--no-sandbox').addArguments('--headless=new').addArguments('--disable-dev-shm-usage')).build();
         await _driver.manage().setTimeouts({ implicit: 10000 });
         await executeTestActions(By=_By,Key=_Key,until=_until,driver=_driver);
+        await driver.manage().window().setRect({
+            width: 600,
+            height: 800
+          });
         await new Promise(resolve => setTimeout(resolve, 10000));
         var base64Data="";
         await _driver.takeScreenshot().then(
